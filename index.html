@@ -521,6 +521,97 @@
         0%, 100% { transform: scale(1); }
         50%      { transform: scale(1.05); }
       }
+
+      /* Monster image (preferred) overlays the fallback SVG */
+      #monster-img {
+        width: 100%;
+        height: 100%;
+        display: none;
+        object-fit: contain;
+      }
+      .monster-wrap.has-image #monster { display: none; }
+      .monster-wrap.has-image #monster-img { display: block; }
+
+      /* Design picker modal */
+      .design-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin: 12px 0 4px;
+      }
+      .design-card {
+        border: 3px solid var(--ink);
+        border-radius: 12px;
+        padding: 8px 6px;
+        background: #fff;
+        text-align: center;
+        cursor: pointer;
+        box-shadow: 2px 2px 0 var(--ink);
+        font-family: "Mochiy Pop P One", sans-serif;
+        font-size: 14px;
+        transition: transform 0.08s;
+      }
+      .design-card:active { transform: translate(2px, 2px); box-shadow: 0 0 0 var(--ink); }
+      .design-card.selected {
+        background: #fff6d0;
+        border-color: var(--accent);
+        box-shadow: 3px 3px 0 var(--accent);
+      }
+      .design-card .thumb {
+        width: 100%;
+        aspect-ratio: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, #e8f7ff, #cfe8c7);
+        border-radius: 8px;
+        margin-bottom: 4px;
+        overflow: hidden;
+      }
+      .design-card .thumb img {
+        width: 92%;
+        height: 92%;
+        object-fit: contain;
+      }
+      .design-card .thumb-fallback {
+        font-size: 34px;
+        color: var(--brown);
+        opacity: 0.6;
+      }
+      .design-card.missing {
+        opacity: 0.65;
+      }
+      .design-card.missing .thumb { filter: grayscale(1); }
+      .design-card .missing-tag {
+        display: inline-block;
+        background: #ffe1a8;
+        color: var(--brown);
+        border: 2px solid var(--ink);
+        border-radius: 999px;
+        padding: 0 6px;
+        font-size: 10px;
+        margin-top: 2px;
+      }
+      .overlay .box.wide { max-width: 380px; padding: 20px 22px; }
+      .overlay .box p.hint {
+        font-size: 11px;
+        color: var(--brown);
+        background: #fff7e0;
+        border: 2px dashed var(--brown);
+        border-radius: 8px;
+        padding: 6px;
+        margin: 8px 0 4px;
+        text-align: left;
+        line-height: 1.45;
+      }
+      .overlay .row-buttons {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 10px;
+      }
+      .overlay .row-buttons button { animation: none; padding: 10px 20px; font-size: 15px; }
+      .overlay .row-buttons button.secondary { background: #fff; color: var(--ink); }
     </style>
   </head>
   <body>
@@ -536,6 +627,7 @@
       <div class="stage">
         <div class="monster-wrap" id="monster-wrap">
           <svg id="monster" viewBox="0 0 200 200"></svg>
+          <img id="monster-img" alt="" />
         </div>
         <div class="bubble" id="bubble"></div>
         <div id="floaters"></div>
@@ -579,8 +671,25 @@
       </div>
 
       <div class="bottom-row">
+        <button class="mini-btn" id="btn-design">🎨 デザイン</button>
         <button class="mini-btn" id="btn-rename">🪶 名前をかえる</button>
         <button class="mini-btn" id="btn-share">🔗 じまんする</button>
+      </div>
+    </div>
+
+    <!-- Design picker -->
+    <div class="overlay" id="design-overlay">
+      <div class="box wide">
+        <h2>キャラデザ</h2>
+        <p>お好みの犬種を選んでね</p>
+        <div class="design-grid" id="design-grid"></div>
+        <p class="hint" id="design-hint">
+          画像がない犬種は SVG で表示されます。<br/>
+          画像を追加するには <code>assets/designs/&lt;id&gt;/stage-0.png 〜 stage-4.png</code> を配置してください。
+        </p>
+        <div class="row-buttons">
+          <button class="secondary" id="btn-design-close">閉じる</button>
+        </div>
       </div>
     </div>
 

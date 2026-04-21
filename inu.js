@@ -7,6 +7,34 @@
   const SHARE_URL = 'https://maxtakaharu34-cmd.github.io/inu-sodate/';
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
+  // Registered character designs. Each has 5 stages expected at
+  // assets/designs/<id>/stage-<0-4>.png. Missing images fall back
+  // to the built-in SVG renderer.
+  const DESIGNS = [
+    { id: 'shiba',       label: '柴犬',        emoji: '🐕' },
+    { id: 'poodle',      label: 'プードル',    emoji: '🐩' },
+    { id: 'black-shiba', label: '黒柴',        emoji: '🦮' },
+    { id: 'dalmatian',   label: 'ダルメシアン', emoji: '🐾' }
+  ];
+  function designById(id) {
+    return DESIGNS.find((d) => d.id === id) || DESIGNS[0];
+  }
+  function stageImagePath(designId, stageId) {
+    return `assets/designs/${designId}/stage-${stageId}.png`;
+  }
+
+  // Cache of image availability: { "shiba/0": true | false, ... }
+  // Lazily populated on first render attempt.
+  const imgAvailability = Object.create(null);
+  function probeImage(url) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+    });
+  }
+
   // Gentle simulation-style progression: evolutions come fast so
   // the player feels progress within minutes, not hours.
   const STAGES = [
@@ -38,7 +66,12 @@
   const ageBar = $('age-bar');
   const nameEl = $('name');
   const monsterSvg = $('monster');
+  const monsterImg = $('monster-img');
   const monsterWrap = $('monster-wrap');
+  const btnDesign = $('btn-design');
+  const designOverlay = $('design-overlay');
+  const designGrid = $('design-grid');
+  const btnDesignClose = $('btn-design-close');
   const floaters = $('floaters');
   const levelupEl = $('levelup');
   const evolveEl = $('evolve');
@@ -128,6 +161,7 @@
     ageSec: 0,
     lastTs: Date.now(),
     stageId: 0,
+    designId: 'shiba',
     isDead: false,
     born: Date.now()
   });
@@ -364,7 +398,37 @@
 
   function renderMonster() {
     const st = currentStage(state.lv);
-    setMonsterSvg(buildMonsterSvg(st.id, state.mood));
+    const designId = state.designId || 'shiba';
+    const imgUrl = stageImagePath(designId, st.id);
+    const cacheKey = `${designId}/${st.id}`;
+
+    // Try to use the per-design PNG first; fall back to the built-in SVG
+    // renderer if the image 404s or isn't there yet.
+    const useImage = () => {
+      monsterImg.src = imgUrl;
+      monsterWrap.classList.add('has-image');
+    };
+    const useSvg = () => {
+      setMonsterSvg(buildMonsterSvg(st.id, state.mood));
+      monsterWrap.classList.remove('has-image');
+    };
+
+    if (imgAvailability[cacheKey] === true) {
+      useImage();
+    } else if (imgAvailability[cacheKey] === false) {
+      useSvg();
+    } else {
+      // First probe: show SVG immediately so the user sees something,
+      // then upgrade to image if available.
+      useSvg();
+      probeImage(imgUrl).then((ok) => {
+        imgAvailability[cacheKey] = ok;
+        if (ok && state.stageId === st.id && state.designId === designId) {
+          useImage();
+        }
+      });
+    }
+
     monsterWrap.classList.remove('happy', 'grumpy');
     if (state.mood > 75) monsterWrap.classList.add('happy');
     else if (state.mood < 30) monsterWrap.classList.add('grumpy');
@@ -601,6 +665,70 @@
   });
 
   // ==================== Controls ====================
+  // ==================== Design picker ====================
+  async function buildDesignGrid() {
+    while (designGrid.firstChild) designGrid.removeChild(designGrid.firstChild);
+    const currentId = state?.designId || 'shiba';
+    // Probe the stage-0 image of each design for the thumbnail.
+    await Promise.all(
+      DESIGNS.map(async (d) => {
+        const url = stageImagePath(d.id, 0);
+        const ok = await probeImage(url);
+        imgAvailability[`${d.id}/0`] = ok;
+        const card = document.createElement('div');
+        card.className = 'design-card' + (d.id === currentId ? ' selected' : '') + (ok ? '' : ' missing');
+        const thumb = document.createElement('div');
+        thumb.className = 'thumb';
+        if (ok) {
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = d.label;
+          thumb.appendChild(img);
+        } else {
+          const fb = document.createElement('div');
+          fb.className = 'thumb-fallback';
+          fb.textContent = d.emoji || '🐶';
+          thumb.appendChild(fb);
+        }
+        const lbl = document.createElement('div');
+        lbl.textContent = d.label;
+        card.appendChild(thumb);
+        card.appendChild(lbl);
+        if (!ok) {
+          const tag = document.createElement('div');
+          tag.className = 'missing-tag';
+          tag.textContent = '画像まだ';
+          card.appendChild(tag);
+        }
+        card.addEventListener('click', () => {
+          if (!state) return;
+          state.designId = d.id;
+          saveState();
+          // Invalidate image cache for this design in case it was probed earlier
+          Object.keys(imgAvailability).forEach((k) => {
+            if (k.startsWith(d.id + '/')) delete imgAvailability[k];
+          });
+          buildDesignGrid();
+          renderMonster();
+          designOverlay.classList.remove('show');
+          speak('よろしく！');
+        });
+        designGrid.appendChild(card);
+      })
+    );
+  }
+  btnDesign.addEventListener('click', () => {
+    if (!state) return;
+    buildDesignGrid();
+    designOverlay.classList.add('show');
+  });
+  btnDesignClose.addEventListener('click', () => {
+    designOverlay.classList.remove('show');
+  });
+  designOverlay.addEventListener('click', (e) => {
+    if (e.target === designOverlay) designOverlay.classList.remove('show');
+  });
+
   btnRename.addEventListener('click', () => {
     const newName = prompt('あたらしい名前をいれて', state?.name || '');
     if (newName && state) {
